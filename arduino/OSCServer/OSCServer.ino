@@ -6,8 +6,17 @@
 #include <OSCBoards.h>
 
 #include "config.h"
+enum MODE {
+  STANDALONE,
+  OSCSERVER
+};
+
+unsigned long lastTime = 0;
 
 int pins[HEIGHT * WIDTH];
+
+MODE mode = OSCSERVER;
+//MODE mode = STANDALONE;
 
 EthernetUDP Udp;
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
@@ -20,7 +29,7 @@ int getIndex(int column, int row) {
 
 // ### setters
 void setPixel(int column, int row, int value) {
-  digitalWrite(pins[getIndex(column, row)], (value+1)%2);
+  digitalWrite(pins[getIndex(column, row)], (value + 1) % 2);
   Serial.println("set pixel " + String(getIndex(column, row)) + ": " + String(column) + " " + String(row));
 }
 void setRow(int row, int value) {
@@ -42,6 +51,9 @@ void setAll(int value) {
 }
 
 // ### router callbacks
+void routeMode(OSCMessage &msg, int addrOffset) {
+  mode = (MODE) msg.getInt(0);
+}
 void routePixel(OSCMessage &msg, int addrOffset ) {
   int column = msg.getInt(0);
   int row = msg.getInt(1);
@@ -65,14 +77,14 @@ void routeAll(OSCMessage &msg, int addrOffset ) {
 }
 
 void routeBlob(OSCMessage &msg, int addrOffset ) {
-uint8_t blob[WIDTH * HEIGHT];
-    msg.getBlob(0, blob, WIDTH * HEIGHT);
-    for (int row = 0; row < HEIGHT; row++) {
-      for (int column = 0; column < WIDTH; column++) {
-        int index = row * WIDTH + column;
-        setPixel(column, row, blob[index]);
-      }
+  uint8_t blob[WIDTH * HEIGHT];
+  msg.getBlob(0, blob, WIDTH * HEIGHT);
+  for (int row = 0; row < HEIGHT; row++) {
+    for (int column = 0; column < WIDTH; column++) {
+      int index = row * WIDTH + column;
+      setPixel(column, row, blob[index]);
     }
+  }
 }
 
 
@@ -106,24 +118,64 @@ void setup() {
 }
 
 void loop() {
+//  for (int row = 0; row < HEIGHT; row++) {
+//    for (int column = 0; column < WIDTH; column++) {
+//      setPixel(column, row, 0);
+//    }
+//  }
+//  for (int row = 0; row < HEIGHT; row++) {
+//    for (int column = 0; column < WIDTH; column++) {
+//      setPixel(column, row, 1);
+//      delay(1000);
+//    }
+//  }
   OSCBundle bundleIN;
   int size;
-
-  if ( (size = Udp.parsePacket()) > 0)
-  {
+  if ( (size = Udp.parsePacket()) > 0) {
     while (size--)
       bundleIN.fill(Udp.read());
-
-    if (!bundleIN.hasError()) {
-      bundleIN.route("/set", routeBlob);
-      bundleIN.route("/setPixel", routePixel);
-      bundleIN.route("/setRow", routeRow);
-      bundleIN.route("/setColumn", routeColumn);
-      bundleIN.route("/setAll", routeAll);
-    } else {
-      Serial.println("got error");
-    }
   }
+
+  switch (mode) {
+    case STANDALONE:
+      {
+        long currentTime = millis();
+        if (currentTime - lastTime > 2 * 1000) {
+          setAll(0);
+          int maxPixel = random(10);
+          for (int i = 0; i < maxPixel; i++) {
+            int column = random(WIDTH);
+            int row = random(HEIGHT);
+            setPixel(column, row, 1);
+          }
+          if (!bundleIN.hasError()) {
+            bundleIN.route("/setMode", routeMode);
+          } else {
+            Serial.println("got error");
+          }
+          lastTime = currentTime;
+        }
+        break;
+      }
+
+    case OSCSERVER:
+      {
+        if (!bundleIN.hasError()) {
+          bundleIN.route("/set", routeBlob);
+          bundleIN.route("/setPixel", routePixel);
+          bundleIN.route("/setRow", routeRow);
+          bundleIN.route("/setColumn", routeColumn);
+          bundleIN.route("/setAll", routeAll);
+        } else {
+          Serial.println("got error");
+        }
+        break;
+      }
+  }
+
+
+
+
 }
 
 
