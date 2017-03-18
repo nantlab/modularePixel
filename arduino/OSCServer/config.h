@@ -1,4 +1,4 @@
-#define HEIGHT 4
-#define WIDTH 6
+#define HEIGHT 6
+#define WIDTH 4
 
 #define PORT 8000
