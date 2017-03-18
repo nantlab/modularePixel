@@ -40,6 +40,12 @@ class model
 			return _height;
 		}
 		int getIndex(int x, int y){
+            if(x >= _width){
+                x = _width - 1;
+            }
+            if(y >= _height){
+                y = _height - 1;
+            }
 			auto index = y * _width + x;
 			if(index >= _values.size()){
 				index = _values.size() - 1;
